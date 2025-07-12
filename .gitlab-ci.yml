@@ -1,0 +1,15 @@
+variables:
+  CI_DOCKERHUB_IMAGE: huncrys/pure-ftpd
+  CI_GHCR_IMAGE: ghcr.io/huncrys/pure-ftpd
+
+include:
+  - component: $CI_SERVER_FQDN/oaklab/ci-templates/oci-publish@8
+    inputs:
+      licenses: MIT
+      platforms:
+        - linux/amd64
+        - linux/386
+        - linux/arm64
+        - linux/arm/v7
+        - linux/arm/v6
+        - linux/ppc64le
