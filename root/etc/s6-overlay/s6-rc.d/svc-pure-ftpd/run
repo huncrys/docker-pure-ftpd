@@ -1,0 +1,7 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+
+echo "[pure-ftpd] Starting with flags:$PUREFTPD_FLAGS"
+
+# shellcheck disable=SC2086
+exec pure-ftpd ${PUREFTPD_FLAGS}

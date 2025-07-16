@@ -1,0 +1,9 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+
+lsiown -R root:root /config
+
+chmod 0600 \
+    /config/keys/pure-ftpd.pem \
+    /config/pure-ftpd/pureftpd.passwd \
+    /config/pure-ftpd/pureftpd.pdb

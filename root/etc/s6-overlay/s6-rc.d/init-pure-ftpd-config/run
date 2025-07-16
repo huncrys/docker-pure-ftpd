@@ -1,0 +1,101 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+
+# copy pre-generated dhparams or generate if needed
+if [[ ! -f /config/pure-ftpd/dhparams.pem ]]; then
+    cp /defaults/pure-ftpd/dhparams.pem /config/pure-ftpd/dhparams.pem
+fi
+if ! grep -q 'PARAMETERS' "/config/pure-ftpd/dhparams.pem"; then
+    curl -o /config/pure-ftpd/dhparams.pem -L "https://ssl-config.mozilla.org/ffdhe4096.txt"
+fi
+
+AUTH_METHOD=${AUTH_METHOD:-puredb}
+SECURE_MODE=${SECURE_MODE:-true}
+PASSIVE_IP=${PASSIVE_IP:-$(curl -s ident.me)}
+PASSIVE_PORT_RANGE=${PASSIVE_PORT_RANGE:-30000:30009}
+DB_TIMEOUT=${DB_TIMEOUT:-45}
+
+PFTPD_FLAGS="/config/pure-ftpd/pureftpd.flags"
+PFTPD_PUREDB="/config/pure-ftpd/pureftpd.pdb"
+PFTPD_PASSWD="/config/pure-ftpd/pureftpd.passwd"
+PFTPD_MYSQL_CONF="/config/pure-ftpd/pureftpd-mysql.conf"
+PFTPD_PGSQL_CONF="/config/pure-ftpd/pureftpd-pgsql.conf"
+PFTPD_LDAP_CONF="/config/pure-ftpd/pureftpd-ldap.conf"
+
+ADD_FLAGS=""
+if [ -f "${PFTPD_FLAGS}" ]; then
+  while read FLAG; do
+    test -z "$FLAG" && continue
+    ADD_FLAGS="$ADD_FLAGS $FLAG"
+  done < ${PFTPD_FLAGS}
+  FLAGS="$FLAGS$ADD_FLAGS"
+fi
+
+FLAGS="$FLAGS --bind 2100"
+FLAGS="$FLAGS --passiveportrange ${PASSIVE_PORT_RANGE}"
+FLAGS="$FLAGS --noanonymous"
+FLAGS="$FLAGS --createhomedir"
+FLAGS="$FLAGS --nochmod"
+FLAGS="$FLAGS --verboselog"
+FLAGS="$FLAGS --syslogfacility ftp"
+FLAGS="$FLAGS --tls 1"
+
+if [ -n "$PASSIVE_IP" ]; then
+  FLAGS="$FLAGS --forcepassiveip $PASSIVE_IP"
+fi
+
+# Secure mode
+SECURE_FLAGS=""
+if [ "$SECURE_MODE" = "true" ]; then
+  SECURE_FLAGS="$SECURE_FLAGS --maxclientsnumber 5"
+  SECURE_FLAGS="$SECURE_FLAGS --maxclientsperip 5"
+  SECURE_FLAGS="$SECURE_FLAGS --antiwarez"
+  SECURE_FLAGS="$SECURE_FLAGS --customerproof"
+  SECURE_FLAGS="$SECURE_FLAGS --dontresolve"
+  SECURE_FLAGS="$SECURE_FLAGS --norename"
+  SECURE_FLAGS="$SECURE_FLAGS --prohibitdotfilesread"
+  SECURE_FLAGS="$SECURE_FLAGS --prohibitdotfileswrite"
+  FLAGS="$FLAGS$SECURE_FLAGS"
+fi
+
+# MySQL auth
+if [ "$AUTH_METHOD" = "mysql" ]; then
+  FLAGS="$FLAGS --login mysql:${PFTPD_MYSQL_CONF}"
+  if [ ! -f "${PFTPD_MYSQL_CONF}" ]; then
+    >&2 echo "ERROR: ${PFTPD_MYSQL_CONF} does not exist"
+    exit 1
+  fi
+  echo "Use MySQL authentication method"
+
+# PostgreSQL auth
+elif [ "$AUTH_METHOD" = "pgsql" ]; then
+  FLAGS="$FLAGS --login pgsql:${PFTPD_PGSQL_CONF}"
+  if [ ! -f "${PFTPD_PGSQL_CONF}" ]; then
+    >&2 echo "ERROR: ${PFTPD_PGSQL_CONF} does not exist"
+    exit 1
+  fi
+  echo "Use PostgreSQL authentication method"
+
+# LDAP auth
+elif [ "$AUTH_METHOD" = "ldap" ]; then
+  FLAGS="$FLAGS --login ldap:${PFTPD_LDAP_CONF}"
+  if [ ! -f "${PFTPD_LDAP_CONF}" ]; then
+    >&2 echo "ERROR: ${PFTPD_LDAP_CONF} does not exist"
+    exit 1
+  fi
+
+# PureDB auth
+else
+  AUTH_METHOD="puredb"
+  FLAGS="$FLAGS --login puredb:${PFTPD_PUREDB}"
+  touch "${PFTPD_PUREDB}" "${PFTPD_PASSWD}"
+  pure-pw mkdb "${PFTPD_PUREDB}" -f "${PFTPD_PASSWD}"
+  echo "Use PureDB authentication method"
+fi
+
+# Set uploadscript if defined
+if [ -f "$UPLOADSCRIPT" ]; then
+  FLAGS="$FLAGS --uploadscript"
+fi
+
+printf "%s" "$FLAGS" > /var/run/s6/container_environment/PUREFTPD_FLAGS

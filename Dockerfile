@@ -5,8 +5,8 @@ ARG ALPINE_VERSION=3.22
 ARG XX_VERSION=1.6.1
 
 FROM --platform=${BUILDPLATFORM} tonistiigi/xx:${XX_VERSION} AS xx
-
-FROM --platform=${BUILDPLATFORM} crazymax/alpine-s6:${ALPINE_VERSION}-2.2.0.3 AS src
+FROM --platform=${BUILDPLATFORM} lsiobase/alpine:${ALPINE_VERSION} AS base
+FROM base AS src
 COPY --from=xx / /
 RUN apk --update --no-cache add patch
 WORKDIR /src/pure-ftpd
@@ -15,7 +15,7 @@ ADD https://github.com/jedisct1/pure-ftpd.git#${PUREFTPD_VERSION} .
 COPY patchs /src
 RUN patch -p1 < ../minimal.patch
 
-FROM --platform=${BUILDPLATFORM} crazymax/alpine-s6:${ALPINE_VERSION}-2.2.0.3 AS builder
+FROM base AS builder
 COPY --from=xx / /
 RUN apk --update --no-cache add autoconf automake binutils clang file make pkgconf tar xz
 ENV XX_CC_PREFER_LINKER=ld
@@ -32,9 +32,11 @@ RUN xx-apk --no-cache --update add \
 WORKDIR /src
 COPY --from=src /src/pure-ftpd /src
 RUN <<EOT
+  echo "**** compile pure-ftpd ****"
   set -ex
   ./autogen.sh
   CC=xx-clang ./configure \
+    --sysconfdir=/config/pure-ftpd \
     --host=$(xx-clang --print-target-triple) \
     --prefix=/out \
     --without-ascii \
@@ -44,52 +46,68 @@ RUN <<EOT
     --with-altlog \
     --with-cookie \
     --with-ftpwho \
-    --with-ldap=$(xx-info sysroot)usr \
-    --with-mysql=$(xx-info sysroot)usr \
-    --with-pgsql=$(xx-info sysroot)usr \
+    --with-ldap \
+    --with-mysql \
+    --with-pgsql \
     --with-puredb \
     --with-quotas \
     --with-ratios \
     --with-throttling \
-    --with-tls=$(xx-info sysroot)usr \
+    --with-tls \
     --with-uploadscript \
     --with-brokenrealpath \
-    --with-certfile=/data/pureftpd.pem
-  make install
-  xx-verify /out/sbin/pure-ftpd
-  xx-verify /out/sbin/pure-uploadscript
-  file /out/sbin/pure-ftpd
+    --with-certfile=/config/keys/pure-ftpd.pem
+  make install-strip
 EOT
 
-FROM crazymax/alpine-s6:${ALPINE_VERSION}-2.2.0.3
+RUN \
+  echo "**** verify binaries ****" && \
+  ls -lR /out && \
+  xx-verify \
+    /out/bin/* \
+    /out/sbin/*
 
-ENV S6_BEHAVIOUR_IF_STAGE2_FAILS="2" \
-  SOCKLOG_TIMESTAMP_FORMAT="" \
-  PURE_PASSWDFILE="/data/pureftpd.passwd" \
-  PURE_DBFILE="/data/pureftpd.pdb" \
-  TZ="UTC"
+RUN \
+  echo "**** create files ****" && \
+  mkdir -p /rootfs && \
+  mv /out /rootfs/usr && \
+  mkdir -p /rootfs/etc/ssl/private && \
+  ln -sf "/config/pure-ftpd/dhparams.pem" "/rootfs/etc/ssl/private/pure-ftpd-dhparams.pem"
 
-RUN apk --update --no-cache add \
-    bind-tools \
-    curl \
-    libldap \
-    libpq \
-    libsodium \
-    mariadb-connector-c \
-    mysql-client \
-    openldap-clients \
-    openssl \
-    postgresql-client \
-    tzdata \
-    zlib \
-  && rm -f /etc/socklog.rules/* \
-  && rm -rf /tmp/*
+RUN \
+  echo "**** determine runtime packages ****" && \
+  scanelf --needed --nobanner /rootfs/usr/bin/pure-* /rootfs/usr/sbin/pure-* \
+    | awk '{ gsub(/,/, "\nso:", $2); print "so:" $2 }' \
+    | sort -u \
+    | xargs -r apk info --installed \
+    | sort -u \
+    >> /rootfs/packages
 
-COPY --from=builder /out /
-COPY rootfs /
+FROM base
+
+COPY --from=builder /rootfs/ /
+
+RUN \
+  echo "**** install runtime packages ****" && \
+  RUNTIME_PACKAGES=$(echo $(cat /packages)) && \
+  apk -U --update --no-cache add \
+    ${RUNTIME_PACKAGES} \
+    logrotate \
+    openssl && \
+  echo "**** fix logrotate ****" && \
+  sed -i "s#/var/log/messages {}.*# #g" \
+    /etc/logrotate.conf && \
+  sed -i 's#/usr/sbin/logrotate /etc/logrotate.conf#/usr/sbin/logrotate /etc/logrotate.conf -s /config/log/logrotate.status#g' \
+    /etc/periodic/daily/logrotate && \
+  echo "**** cleanup ****" && \
+  rm -rf \
+    /etc/s6-overlay/s6-rc.d/init-adduser \
+    /etc/s6-overlay/s6-rc.d/init-device-perms/dependencies.d/init-adduser \
+    /etc/s6-overlay/s6-rc.d/init-os-end/dependencies.d/init-adduser \
+    /etc/s6-overlay/s6-rc.d/user/contents.d/init-adduser
+
+# copy local files
+COPY root/ /
 
 EXPOSE 2100 30000-30009
-WORKDIR /data
-VOLUME [ "/data" ]
-
-ENTRYPOINT [ "/init" ]
+VOLUME /config
