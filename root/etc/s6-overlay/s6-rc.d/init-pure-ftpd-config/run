@@ -40,7 +40,7 @@ FLAGS="$FLAGS --verboselog"
 FLAGS="$FLAGS --syslogfacility ftp"
 FLAGS="$FLAGS --tls 1"
 
-if [ -n "$PASSIVE_IP" ]; then
+if [ -n "$PASSIVE_IP" ] && [ "$PASSIVE_IP" != "no" ]; then
   FLAGS="$FLAGS --forcepassiveip $PASSIVE_IP"
 fi
 
