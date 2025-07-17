@@ -9,11 +9,11 @@ if ! grep -q 'PARAMETERS' "/config/pure-ftpd/dhparams.pem"; then
     curl -o /config/pure-ftpd/dhparams.pem -L "https://ssl-config.mozilla.org/ffdhe4096.txt"
 fi
 
+FTP_PORT=${FTP_PORT:-2100}
 AUTH_METHOD=${AUTH_METHOD:-puredb}
 SECURE_MODE=${SECURE_MODE:-true}
 PASSIVE_IP=${PASSIVE_IP:-$(curl -s ident.me)}
 PASSIVE_PORT_RANGE=${PASSIVE_PORT_RANGE:-30000:30009}
-DB_TIMEOUT=${DB_TIMEOUT:-45}
 
 PFTPD_FLAGS="/config/pure-ftpd/pureftpd.flags"
 PFTPD_PUREDB="/config/pure-ftpd/pureftpd.pdb"
@@ -31,7 +31,7 @@ if [ -f "${PFTPD_FLAGS}" ]; then
   FLAGS="$FLAGS$ADD_FLAGS"
 fi
 
-FLAGS="$FLAGS --bind 2100"
+FLAGS="$FLAGS --bind ${FTP_PORT}"
 FLAGS="$FLAGS --passiveportrange ${PASSIVE_PORT_RANGE}"
 FLAGS="$FLAGS --noanonymous"
 FLAGS="$FLAGS --createhomedir"
