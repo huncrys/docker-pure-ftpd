@@ -1,17 +1,16 @@
 # syntax=docker/dockerfile:1
 
-ARG PUREFTPD_VERSION=1.0.52
-ARG ALPINE_VERSION=3.22
-ARG XX_VERSION=1.6.1
-
-FROM --platform=${BUILDPLATFORM} tonistiigi/xx:${XX_VERSION} AS xx
-FROM --platform=${BUILDPLATFORM} lsiobase/alpine:${ALPINE_VERSION} AS base
+FROM --platform=${BUILDPLATFORM} tonistiigi/xx:1.8.0@sha256:add602d55daca18914838a78221f6bbe4284114b452c86a48f96d59aeb00f5c6 AS xx
+FROM --platform=${BUILDPLATFORM} lsiobase/alpine:3.22@sha256:78f18466b0f75869d22adbd8af5ce0c956bf03c31f9152db105883e3c2bce7d4 AS base
 FROM base AS src
 COPY --from=xx / /
 RUN apk --update --no-cache add patch
 WORKDIR /src/pure-ftpd
-ARG PUREFTPD_VERSION
+
+# renovate: datasource=github-releases depName=jedisct1/pure-ftpd
+ARG PUREFTPD_VERSION=1.0.52
 ADD https://github.com/jedisct1/pure-ftpd.git#${PUREFTPD_VERSION} .
+
 COPY patchs /src
 RUN patch -p1 < ../minimal.patch
 
