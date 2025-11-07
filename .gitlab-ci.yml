@@ -1,9 +1,9 @@
 variables:
   CI_DOCKERHUB_IMAGE: huncrys/pure-ftpd
-  CI_GHCR_IMAGE: ghcr.io/huncrys/pure-ftpd
+  CI_GHCR_IMAGE: huncrys/pure-ftpd
 
 include:
-  - component: $CI_SERVER_FQDN/oaklab/ci-templates/oci-publish@8
+  - component: $CI_SERVER_FQDN/oaklab/ci-templates/oci-publish@10
     inputs:
       licenses: MIT
       platforms:
