@@ -8,7 +8,7 @@ RUN apk --update --no-cache add patch
 WORKDIR /src/pure-ftpd
 
 # renovate: datasource=github-releases depName=jedisct1/pure-ftpd
-ARG PUREFTPD_VERSION=1.0.52
+ARG PUREFTPD_VERSION=1.0.53
 ADD https://github.com/jedisct1/pure-ftpd.git#${PUREFTPD_VERSION} .
 
 COPY patchs /src
