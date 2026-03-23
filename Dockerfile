@@ -9,7 +9,8 @@ WORKDIR /src/pure-ftpd
 
 # renovate: datasource=github-releases depName=jedisct1/pure-ftpd
 ARG PUREFTPD_VERSION=1.0.53
-ADD https://github.com/jedisct1/pure-ftpd.git#${PUREFTPD_VERSION} .
+ARG PUREFTPD_COMMIT=07f65ebd6572d9dfcfc5f3f7a1a13d211e9d1f33
+ADD https://github.com/jedisct1/pure-ftpd.git#${PUREFTPD_COMMIT} .
 
 COPY patchs /src
 RUN patch -p1 < ../minimal.patch
