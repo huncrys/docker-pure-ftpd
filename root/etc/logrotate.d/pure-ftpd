@@ -8,6 +8,6 @@
         missingok
         sharedscripts
         postrotate
-                s6-svc -r /run/service/svc-syslog
+                s6-svc -t /run/service/svc-pure-ftpd
         endscript
 }
