@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 FROM --platform=${BUILDPLATFORM} tonistiigi/xx:1.9.0@sha256:c64defb9ed5a91eacb37f96ccc3d4cd72521c4bd18d5442905b95e2226b0e707 AS xx
-FROM --platform=${BUILDPLATFORM} lsiobase/alpine:3.24@sha256:9df4cdf2c66ba94eac5112272991fe122021596507600294d78842d72005f0f2 AS base
+FROM --platform=${BUILDPLATFORM} lsiobase/alpine:3.24@sha256:b1c143859375d24e0b837ad96ca8d9af9b819f469289c1447930d76841b77f0d AS base
 FROM base AS src
 COPY --from=xx / /
 RUN apk --update --no-cache add patch
